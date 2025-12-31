@@ -1,0 +1,39 @@
+Updates to non-COSMIC mission datasets:
+https://www.cosmic.ucar.edu/what-we-do/data-processing-center/data
+
+https://www.cosmic.ucar.edu/what-we-do/cosmic-1/data
+https://www.cosmic.ucar.edu/what-we-do/cosmic-2/data
+
+
+
+Existing missions, downloaded to 2019 doy 58
+"metopa2016"   2007.274 - 2015.365
+"metopb2016"   2013.032 - 2015.365
+"sacc"         2006.068 - 2011.215
+"tsx"          2008.041 - ????.???
+"grace"        2007.059 - 2017.334
+"cnofs"        2010.060 - 2011.365
+"kompsat5"     2015.022 - ????.???
+"champ2016"    2001.139 - 2008.279
+"metopb"       2016.001 - 2019.058
+"metopb"       2016.001 - 2019.058
+"cosmic2013"   superceded by cosmic2021
+"cosmic"       2006.120 - ?
+
+Extension of existing missions
+"tsx"          ????.??? - 2025.151
+"kompsat5"     ????     - 2025.151
+"metopa"       2019.59 - 2021.331
+"metopb"       2019.59 - 2025.151
+"cosmic"       some data through 2020.116
+
+New missions
+"geoopt"       2020.351 - 2022.294
+"metopc"       2019.195 - 2025.151
+"paz"          2018.130 -  present
+"planetiq"     2023.199 -  present
+"spire"        2020.352 -  present
+"tdx"          2016.001 - 2025.151
+"cosmic2021"   2006.120 - 2019.344 ?
+"cosmic2nrt"   2019.244 -  present
+
