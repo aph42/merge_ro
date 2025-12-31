@@ -35,11 +35,11 @@ to allow for radiative calculations and to carry out various analyses.
  
  4. do_grid.sh: Starts processes running grid_all.sh for different years
     - grid_all.sh: Runs grid.py for each month
-      *
+      * grid.py: outputs gridded quantities
 
  5. do_kw.sh: Starts processes running kw_filter_all.sh
     - kw_filter_all.sh: Runs filter.py with different actions
-      *e.g. 
+      * e.g. calculating wave-number frequency decompositions etc. 
 
 ## Other key files
 
@@ -49,3 +49,8 @@ read.py: utilities for opening pygeode datasets of the various stages of the wor
  - [ ] Run merging of a single month/profile to ensure code still works. Choose example
        profile from figure.
  - [ ] Adapt to merge with ERA 5
+ - [ ] Download skin temperature, albedo, emissivity from ERA 5
+ - [ ] Update model level quantities from ERA5 to end of 2025; start on radiative heating rates?
+ - [ ] Make list of RO missions and dates to work on downloading
+ - [ ] Check for collision rate in COSMIC2/spire output
+ - [ ] Update RO dataset
