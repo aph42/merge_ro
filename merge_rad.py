@@ -1,7 +1,7 @@
 import numpy as np, pylab as pyl
 import pygeode as pyg
 from rrtm import rrtmg
-from ECMWF import ERAI as ei, ozone as o3
+from ECMWF import ERAI as ei, ERA5 as e5, ozone as o3
 import MLS as mls
 import WACCM as wc
 import os
@@ -11,7 +11,7 @@ import read
 
 def merge(year, month, day, nprof=-1):
 # {{{
-   out_pth = read.path + 'merged/mls/%04d-%02d/'
+   out_pth = read.path + 'merged2026/mls/%04d-%02d/'
    out_fn = '%s_merged_%04d-%02d-%02d.nc'
 
    p0 = 1013.25
@@ -36,7 +36,7 @@ def merge(year, month, day, nprof=-1):
    ef = pyg.Hybrid(etaf, A=etaf-Bf, B=Bf)
    eh = pyg.Hybrid(etah, A=etah-Bh, B=Bh).rename('etah')
 
-   def tstr(tax, y, mn, d, h=0, mi=0, s=0, fmt='$H:$M:$S $d $b $a'):
+   def tstr(tax, y, mn, d, h=0, mi=0, s=0, fmt='$H:$M:$S $d $m $a'):
       dt = dict(year=y, month=mn, day=d, hour=h, minute=mi, second=s)
       return tax.formatvalue(tax.date_as_val(dt), fmt)
    ltimes = (tstr(ei.an.time, year, month, day), tstr(ei.an.time, year, month, day+1))
@@ -221,6 +221,231 @@ def merge(year, month, day, nprof=-1):
 
       vs = [pf, ph, tei, tgps, tbl, CO2_wc, O3_wc, O3_mls, O3_bl, H2O_wc, H2O_mls, H2O_bl, \
             qLW_ei, qSW_ei, tsfc, alb]
+      
+      vs += [v(i_time = (0, npr)) for v in [d.OLat, d.OLon, d.GPSsatID]]
+
+      ds = pyg.Dataset(vs)
+
+      pth = out_pth % (year, month)
+      if not os.path.exists(pth): os.makedirs(pth)
+      fn = pth + out_fn % (m, year, month, day)
+      print('Writing %s.' % fn)
+      pyg.save(fn, ds, version = 4, compress = True)
+# }}}
+
+def merge_e5(year, month, day, nprof=-1):
+# {{{
+   out_pth = read.path + 'merged_era5/mls/%04d-%02d/'
+   out_fn = '%s_merged_%04d-%02d-%02d.nc'
+
+   p0 = 1013.25
+
+   # Construct hybrid level grid on which to construct merged data
+   e5_ef = (p0*e5.hyb_B_on_full + e5.hyb_A_on_full/100.) / p0
+   e5_eh = (p0*e5.hyb_B_on_half + e5.hyb_A_on_half/100.) / p0
+   e5_etaf = pyg.Hybrid(e5_ef, A=e5.hyb_A_on_full, B=e5.hyb_B_on_full)
+   e5_etah = pyg.Hybrid(e5_eh, A=e5.hyb_A_on_half, B=e5.hyb_B_on_half)
+
+   #e5_Af = e5_etaf.auxasvar('A')
+   e5_Bf = e5_etaf.auxasvar('B')
+   e5_Bh = e5_etah.auxasvar('B')
+
+   etaf, etah = make_eta_grid(e5_ef, e5_eh)
+   ef = pyg.Hybrid(etaf, A=etaf, B=0.)
+   eh = pyg.Hybrid(etah, A=etah, B=0.).rename('etah')
+
+   Bf = e5_Bf.interpolate('eta', ef)[:]
+   Bh = e5_Bh.interpolate('eta', eh)[:]
+
+   ef = pyg.Hybrid(etaf, A=etaf-Bf, B=Bf)
+   eh = pyg.Hybrid(etah, A=etah-Bh, B=Bh).rename('etah')
+
+   def tstr(tax, y, mn, d, h=0, mi=0, s=0, fmt='$H:$M:$S $d $b $a'):
+      dt = dict(year=y, month=mn, day=d, hour=h, minute=mi, second=s)
+      return tax.formatvalue(tax.date_as_val(dt), fmt)
+   ltimes = (tstr(e5.an.time, year, month, day), tstr(e5.an.time, year, month, day+1))
+
+   # Load ERA Interim data
+   def load_e5(v): 
+      v = v(time=ltimes)
+      #if v.hasaxis('level'): v = v.sorted(level = -1)
+      return v.load()
+
+   e5_ps  = pyg.exp(e5.an.lnsp)
+   e5_ps  = load_e5(e5_ps)
+
+   e5_t   = load_e5(e5.an.t)
+   #e5_qlw = load_e5(e5.fc_tend.qtendCSLW)
+   #e5_qsw = load_e5(e5.fc_tend.qtendCSSW)
+   #e5_skt = load_e5(e5.fc.skt)
+   #e5_fal = load_e5(e5.fc.fal)
+ 
+   # Load WACCM data
+   def load_wc(v): 
+      tm = pyg.modeltime365range(ltimes[0], ltimes[1], 0.25, inc=True)
+      v = (v + 0*tm).rename(v.name)
+      if v.hasaxis('eta'): v = v.sorted(eta = 1)
+      return v.load()
+
+   wc_co2 = load_wc(wc.cld.CO2)
+   wc_o3  = load_wc(wc.cld.O3 )
+   wc_h2o = load_wc(wc.cld.H2O)
+ 
+   # Load MLS data
+   def load_mls(v): 
+      v = v(year=year, month=month, day=day)
+      if v.hasaxis('eta'): v = v.sorted(eta = 1)
+      return v.load()
+
+   mls_h2o = load_mls(1e-6*mls.h2o.H2O.unfill(-999.9))
+   mls_o3  = load_mls(1e-6*mls.o3.O3.unfill(-999.9))
+   mls_valid = True
+
+   if len(mls_h2o.time) == 0 or len(mls_o3.time) == 0:
+      mls_valid = False
+
+   def sel_e5(v): 
+      return v(s_time=tstr, s_lat=lat, s_lon=lon)
+
+   def sel_mls(v): 
+      ln = lon % 360.
+      return v(s_time=tstr, s_lat=lat, s_lon=ln)
+
+   def sel_wc(v): 
+      return v(s_time=tstr, s_lat=lat)
+
+   # Blending profiles (all in units of log-pressure km w/ p0 = 1000 hPa, H = 7 km)
+   zt_T  = 40.   # Temperature
+   zb_T  = 10.
+   dzt_T = 3.
+   dzb_T = 0.6
+
+   zt_X  = 40.   # Constituents
+   zb_X  = 11.
+   dzt_X = 3.
+   dzb_X = 0.6
+
+   #missions = ['cnofs', 'cosmic2013', 'metopa2016', 'metopb2016', 'champ2016', 'grace', 'sacc', 'tsx']
+
+   for m in read.missions:
+      # Open GPS data
+      try:
+         d = read.open_nc(m, year, month, day)
+      except AssertionError as e:
+         print('No Matches: %s' % m)
+         continue
+
+      nlevs = len(ef)
+      if nprof == -1: 
+         npr = len(d.time)
+      else:
+         npr = nprof
+
+      # Allocate output arrays
+      P_f     = np.zeros((npr, nlevs),     'd')
+      P_h     = np.zeros((npr, nlevs + 1), 'd')
+      T_gps   = np.zeros((npr, nlevs),     'd')
+      T_e5    = np.zeros((npr, nlevs),     'd')
+      T_bl    = np.zeros((npr, nlevs),     'd')
+      CO2_wc  = np.zeros((npr, nlevs),     'd')
+      O3_wc   = np.zeros((npr, nlevs),     'd')
+      H2O_wc  = np.zeros((npr, nlevs),     'd')
+      O3_mls  = np.zeros((npr, nlevs),     'd')
+      H2O_mls = np.zeros((npr, nlevs),     'd')
+      O3_bl   = np.zeros((npr, nlevs),     'd')
+      H2O_bl  = np.zeros((npr, nlevs),     'd')
+      #qlw_e5  = np.zeros((npr, nlevs),     'd')
+      #qsw_e5  = np.zeros((npr, nlevs),     'd')
+      #tsf_e5  = np.zeros((npr,),           'd')
+      #alb_e5  = np.zeros((npr,),           'd')
+
+      for i in range(npr):
+         p = d.Pres(si_time = i)
+         # Discard data which are too closely spaced in pressure
+         imsk = np.where((pyg.log(p).diff('level') < -1e-4)[:])[0]
+
+         p = d.Pres(si_time = i, li_level=imsk)
+         t = d.Temp(si_time = i, li_level=imsk) + c.zeroC
+         lat = d.OLat[i]
+         lon = d.OLon[i]
+         tstr   = d.time.formatvalue(d.time[i], '$H:$M:$S $d $b $a')
+
+         # Construct pressure grid
+         ps = sel_e5(e5_ps)[()]
+         e5_pr = (ps * e5.B + e5.A)/100.
+         ps /= 100.
+
+         pf = pyg.Pres( p0 * etaf + (ps - p0) * Bf )
+         ph = pyg.Pres( p0 * etah + (ps - p0) * Bh )
+
+         P_f[i, :] = pf[:]
+         P_h[i, :] = ph[:]
+
+         zs = -7*pyg.log(pf/1000.)
+
+         # Interpolate temperature data
+         T_e5 [i, :] = sel_e5(e5_t).interpolate('level', pf, inx=pyg.log(e5_pr), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+         T_gps[i, :] = t           .interpolate('level', pf, inx=pyg.log(p),     outx=pyg.log(pf), omit_nonmonotonic=True)[:]
+
+         # Merge temperatures
+         bl = (0.5 * (pyg.tanh((zs - zb_T)/dzb_T) + pyg.tanh((zt_T - zs)/dzt_T)))[:]
+
+         msk = ~np.isnan(T_gps[i, :])
+         T_bl[i, :  ] = T_e5[i, :]
+         T_bl[i, msk] = T_bl[i, msk] * (1 - bl[msk]) + T_gps[i, msk] * bl[msk]
+
+         # Interpolate constituent
+         CO2_wc [i, :] = sel_wc(wc_co2 ).interpolate('eta',  pf, inx=pyg.log(wc_co2.eta), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+         O3_wc  [i, :] = sel_wc(wc_o3  ).interpolate('eta',  pf, inx=pyg.log(wc_o3 .eta), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+         H2O_wc [i, :] = sel_wc(wc_h2o ).interpolate('eta',  pf, inx=pyg.log(wc_h2o.eta), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+    
+         if mls_valid:
+            O3_mls [i, :] = sel_mls(mls_o3 ).interpolate('pres', pf, inx=pyg.log(mls_o3 .pres), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+            H2O_mls[i, :] = sel_mls(mls_h2o).interpolate('pres', pf, inx=pyg.log(mls_h2o.pres), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+         else:
+            O3_mls [i, :] = O3_wc[i, :]
+            H2O_mls[i, :] = H2O_wc[i, :]
+
+         # Merge constituents
+         bl = (0.5 * (pyg.tanh((zs - zb_X)/dzb_X) + pyg.tanh((zt_X - zs)/dzt_X)))[:]
+
+         msk = ~(np.isnan(O3_mls[i, :]) | (O3_mls[i, :] < 0.))
+         O3_bl[i, :  ] = O3_wc[i, :]
+         O3_bl[i, msk] = O3_bl[i, msk] * (1 - bl[msk]) + O3_mls[i, msk] * bl[msk]
+
+         msk = ~(np.isnan(H2O_mls[i, :]) | (H2O_mls[i, :] < 0.))
+         H2O_bl[i, :  ] = H2O_wc[i, :]
+         H2O_bl[i, msk] = H2O_bl[i, msk] * (1 - bl[msk]) + H2O_mls[i, msk] * bl[msk]
+
+         # Interpolate heating rates
+         #qlw_e5[i, :] = sel_e5(e5_qlw).interpolate('eta', pf, inx=pyg.log(e5_pr), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+         #qsw_e5[i, :] = sel_e5(e5_qsw).interpolate('eta', pf, inx=pyg.log(e5_pr), outx=pyg.log(pf), d_below=0., d_above=0.)[:]
+
+         # Store skin temperature and albedo for appropriate gridpoint/time
+         #tsf_e5[i] = sel_e5(e5_skt)[()]
+         #alb_e5[i] = sel_e5(e5_fal)[()]
+
+      time = d.time(i_time = (0, npr))
+
+      pf      = pyg.Var((time, ef), values = P_f,     name = 'p')
+      ph      = pyg.Var((time, eh), values = P_h,     name = 'ph')
+      te5     = pyg.Var((time, ef), values = T_e5,    name = 'Te5')
+      tgps    = pyg.Var((time, ef), values = T_gps,   name = 'Tgps')
+      tbl     = pyg.Var((time, ef), values = T_bl,    name = 'Tbl')
+      CO2_wc  = pyg.Var((time, ef), values = CO2_wc,  name = 'CO2w')
+      O3_wc   = pyg.Var((time, ef), values = O3_wc,   name = 'O3w')
+      O3_mls  = pyg.Var((time, ef), values = O3_mls,  name = 'O3mls')
+      O3_bl   = pyg.Var((time, ef), values = O3_bl,   name = 'O3bl')
+      H2O_wc  = pyg.Var((time, ef), values = H2O_wc,  name = 'H2Ow')
+      H2O_mls = pyg.Var((time, ef), values = H2O_mls, name = 'H2Omls')
+      H2O_bl  = pyg.Var((time, ef), values = H2O_bl,  name = 'H2Obl')
+      #qLW_e5  = pyg.Var((time, ef), values = qlw_e5,  name = 'lwhre5')
+      #qSW_e5  = pyg.Var((time, ef), values = qsw_e5,  name = 'swhre5')
+      #tsfc    = pyg.Var((time,),    values = tsf_e5,  name = 'Tsfc')
+      #alb     = pyg.Var((time,),    values = alb_e5,  name = 'alb')
+
+      vs = [pf, ph, te5, tgps, tbl, CO2_wc, O3_wc, O3_mls, O3_bl, H2O_wc, H2O_mls, H2O_bl]#, \
+            #qLW_e5, qSW_e5, tsfc, alb]
       
       vs += [v(i_time = (0, npr)) for v in [d.OLat, d.OLon, d.GPSsatID]]
 

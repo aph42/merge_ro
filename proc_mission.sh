@@ -12,10 +12,12 @@
 #           "cosmic2013"
 #           "cosmic"
 #           "champ2016"
-#           "metobp"
+#           "metopb"
+#           "metopa"
+
+# "cosmic2": https://data.cosmic.ucar.edu/gnss-ro/cosmic2/nrt/level2/
 
 declare -a missions=(
-            "metopa"
             "metopb"
             )
 
@@ -27,7 +29,7 @@ do
 for year in {2019..2019}
 do
 
-for day in $(seq -f "%03g" 1 58)
+for day in $(seq -f "%03g" 60 365)
 do
  
         url='http://cdaac-www.cosmic.ucar.edu/cdaac/rest/tarservice/data/'$mission'/atmPrf/'$year'.'$day
@@ -36,7 +38,7 @@ do
 
         echo '==========================='
         echo 'Downloading '$fn
-        #echo wget -q $usr $url -O $fn
+        echo wget -q $usr $url -O $fn
         wget -q $usr $url -O $fn
 
         echo 'Extracting '$fn 
@@ -45,7 +47,7 @@ do
         if [ $? -eq 0 ]
         then
            echo 'Processing '$fn 
-           python process_mission.py $mission $year $day
+           python -m process_mission.py $mission $year $day
 
            # Clean up downloads
            echo 'Removing downloaded data'

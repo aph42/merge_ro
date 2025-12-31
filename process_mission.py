@@ -1,4 +1,4 @@
-from . import process as pr
+import process as pr
 import gc
 
 import sys
