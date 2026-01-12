@@ -46,11 +46,9 @@ to allow for radiative calculations and to carry out various analyses.
 read.py: utilities for opening pygeode datasets of the various stages of the workflow
 
 ## TODO list
- - [ ] Run merging of a single month/profile to ensure code still works. Choose example
-       profile from figure.
- - [ ] Adapt to merge with ERA 5
- - [ ] Download skin temperature, albedo, emissivity from ERA 5
- - [ ] Update model level quantities from ERA5 to end of 2025; start on radiative heating rates?
- - [ ] Make list of RO missions and dates to work on downloading
- - [ ] Check for collision rate in COSMIC2/spire output
- - [ ] Update RO dataset
+ - [ ] Decide on list of missions to use
+ - [ ] Check on date_hash implementation to omit existing cosmic1 data
+ - [ ] Process cosmic2021 re-processing
+ - [ ] Write summary function that looks for raw nc files, quotes first and last days and number of missing dates within that range
+ - [ ] Test merging and radiative calculation for Jan 2010 using ERA5 humidity and surface quantities
+ - [ ] Discuss with Aaron if he can generate a global gridded MLS dataset that spans 2004 through 2025

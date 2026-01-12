@@ -1,3 +1,4 @@
+import os, time
 import pygeode as pyg
 import numpy as np
 
@@ -77,6 +78,7 @@ def open_profile(fn, N=3100):
    all_dates.add(dstr)
 
    t = pyg.StandardTime(units='days', starttime='1 Jan 2000', **date)
+   t.rtol = 1e-9
 
    def make_var(a):
       name = a
@@ -166,12 +168,45 @@ def read_date_hash(year, doy, mission=None):
    return dates
 # }}}
 
-def process_date(mission, year, doy, Nz = 3100, files = rpath + 'dl/{mission}/atmPrf/{year:04d}.{doy:03d}/*_nc'):
+def process_date(mission, year, doy, Nz = 3100, files = rpath + 'dl/{mission}/atmPrf/{year:04d}.{doy:03d}/*_nc', overwrite = False):
 # {{{
    import sys
 
    global all_dates
    global hashed_dates
+
+   tax = pyg.standardtimen(f'{year}-01-01', doy)
+   month = tax.month[-1]
+   day   = tax.day[-1]
+
+   out_path = rpath + 'raw/{mission}/'.format(mission=mission) 
+   log_path = out_path + 'logs/'
+   if not os.path.exists(out_path): os.makedirs(out_path)
+   if not os.path.exists(log_path): os.makedirs(log_path)
+
+   log_fn = log_path + '{mission}_atmPrf_{year:04d}-{doy:03d}_log.txt'.format(mission=mission, year=year, doy=doy)
+   out_fn = out_path + '{mission}_atmPrf_{year:04d}-{month:02d}-{day:02d}.nc'.format(mission=mission, year=year, month=month, day=day)
+   dh_fn = rpath + 'raw/date_hash/%04d-%03d_%s.txt' % (year, doy, mission)
+
+   if overwrite:
+      # If we're rebuilding the raw file, make sure to delete the date hash file as well.
+      print(f'Overwriting; removing {out_fn} and {dh_fn}.')
+      if os.path.exists(out_fn): os.remove(out_fn)
+      if os.path.exists(dh_fn): os.remove(dh_fn)
+   else:
+      if os.path.exists(out_fn) and os.path.exists(dh_fn):
+         if os.path.getmtime(dh_fn) < time.mktime(time.strptime("Jan 09 2026", "%b %d %Y")):
+            print(f'{out_fn} processed prior to Jan 9th. Re-processing.')
+            os.remove(out_fn)
+            os.remove(dh_fn)
+         else:
+            print(f'{out_fn} already processed. Skipping.')
+            return
+      elif os.path.exists(dh_fn):
+         print(f'{out_fn} does not exist, but date hash file exists; removing it and reprocessing.')
+         os.remove(dh_fn)
+      elif os.path.exists(out_fn):
+         print(f'{out_fn} exists, but date hash file does not; reprocessing and overwriting.')
 
    all_dates = read_date_hash(year, doy, mission)
    old_dates = set()
@@ -179,10 +214,7 @@ def process_date(mission, year, doy, Nz = 3100, files = rpath + 'dl/{mission}/at
    hashed_dates = {}
 
    print('# of old dates: %d' % len(old_dates))
-
    fns = files.format(mission=mission, year=year, doy=doy)
-
-   log_fn = rpath + 'raw/{mission}/logs/{mission}_atmPrf_{year:04d}-{doy:03d}_log.txt'.format(mission=mission, year=year, doy=doy)
 
    with open(log_fn, 'w') as f:
       sys.stdout = f
@@ -198,15 +230,13 @@ def process_date(mission, year, doy, Nz = 3100, files = rpath + 'dl/{mission}/at
    new_dates = all_dates - old_dates
    print('# of new dates: %d' % len(new_dates))
 
-   month = ds.time.month[0]
-   day   = ds.time.day[0]
-
-   out_fn = rpath + 'raw/{mission}/{mission}_atmPrf_{year:04d}-{month:02d}-{day:02d}.nc'.format(mission=mission, year=year, month=month, day=day)
    print('Writing %s.' % out_fn)
    pyg.save(out_fn, ds, version = 4, compress = True)
 
    write_date_hash(mission, year, doy, new_dates, hashed_dates)
 # }}}
+
+# Needed?
 
 def open_nc(year, month):
 # {{{

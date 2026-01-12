@@ -1,6 +1,6 @@
 import pygeode as pyg
 import numpy as np
-import os
+import os, glob
 
 #path = '/UTLS/phitch/RO/'
 #if not os.path.exists(path):
@@ -36,8 +36,10 @@ thdef = Theta([  302.,   304.,   306.,   308.,   310.,   313.,   315.,   317.,
                  998.,  1024.,  1055.,  1092.,  1137.,  1194.,  1268.,  1363.,
                 1480.,  1629.,  1806.,  2022.,  2278.,  2572.,  3209.])
 
-missions = ['cnofs', 'cosmic2013', 'cosmic', 'metopa2016', 'metopb2016', 'metopa', 'metopb', \
-            'champ2016', 'grace', 'sacc', 'tsx', 'paz', 'kompsat5']
+missions = ['cnofs', 'cosmic2021', 'metopa2016', 'metopb2016', 'metopa', 'metopb', 'metopc', \
+            'champ2016', 'grace', 'sacc', 'tsx', 'paz', 'kompsat5', 'tdx', 'spire', 'cosmic2', \
+            'geoopt', 'planetiq']
+missions.sort()
 
 def grid_profiles_pres(ds, pres):
 # {{{
@@ -130,7 +132,13 @@ def open_nc(mission, year, month, days=None):
       for d in days:
          fns.extend(glob.glob(path + 'raw/%s/%s_atmPrf_%d-%02d-%02d.nc' % (m, m, year, month, d)))
 
-   d = pyg.openall(fns)
+   def opener(fn):
+      p = pyg.open(fn)
+      t = p.time.withnewvalues(np.round(p.time[:]))
+      t.rtol = 1e-9
+      return p.replace_axes(time=t)
+
+   d = pyg.openall(fns, opener=opener)
    tm = pyg.StandardTime(startdate=d.time.startdate, units='days', values=d.time[:], lat=d.OLat[:], lon=d.OLon[:])
    dt = d.replace_axes(time=tm)
 
@@ -355,18 +363,41 @@ def open_var():
    return pyg.open_multi(fns, pattern='$Y-$m-$d', opener=opener)
 # }}}
 
-def summary(raw=False, merged=False, rrtm=False):
+def open_summary(mission):
 # {{{
+    spath = path + 'raw/%s/%s_summary*.nc' % (mission, mission)
+    return pyg.open_multi(spath, pattern='$Y-$m')
+# }}}
+
+def write_summary(raw=False, merged=False, rrtm=False, reprocess=False):
+# {{{
+   t0 = pyg.standardtimen('2000-01-01', 1)
+
    if raw:
       for m in missions:
          print('============== %s ==============' % m)
-         for yr in np.arange(2001, 2017):
+         for yr in np.arange(2006, 2019):
             for mn in range(1, 13):
-               try:
-                  d = open_nc(m, yr, mn)
-                  print('%04d-%02d: %d profiles.' % (yr, mn, len(d.time)))
-               except AssertionError as e:
-                  pass
+               summary_file = path + 'raw/%s/%s_summary_%d-%02d.nc' % (m, m, yr, mn)
+               if not reprocess and os.path.exists(summary_file):
+                   print('Summary file exists. Skipping.')
+                   continue
+
+               days = int(t0.days_in_month(yr, mn))
+               tax = pyg.standardtimen('%04d-%02d-01' % (yr, mn), days)
+               ntot = np.zeros(days, 'i')
+               ntrop = np.zeros(days, 'i')
+               for dy in range(days):
+                  try:
+                     ds = open_nc(m, yr, mn, dy + 1)
+                     ntot[dy] = ds.time.shape[0]
+                     ntrop[dy] = ds.time(lat=(-10, 10)).shape[0]
+                  except AssertionError as e:
+                     pass
+      
+               pr = pyg.Var((tax,), values = ntot, name = f'profiles')
+               prt = pyg.Var((tax,), values = ntrop, name = f'tropical_profiles')
+               pyg.save(summary_file, [pr, prt])
    if merged:
       for m in missions:
          print('============== %s ==============' % m)
@@ -390,3 +421,42 @@ def summary(raw=False, merged=False, rrtm=False):
             if d is not None:
                print('%04d-%02d: %d profiles.' % (yr, mn, len(d.time)))
 # }}}
+
+def summary(raw=False, merged=False, rrtm=False, reprocess=False):
+# {{{
+   t0 = pyg.standardtimen('2000-01-01', 1)
+
+   if raw:
+      for m in missions:
+         patt = path + f'raw/{m}/{m}_atmPrf_*.nc'
+         fns = glob.glob(patt)
+
+         if fns == None or len(fns) == 0: 
+             print(f'{m:<13}: No data.')
+             continue
+
+         dts = [f[-13:-3] for f in fns]
+         dts.sort()
+
+         ndates = len(dts)
+         yr1 = dts[0][:4]
+         v1 = t0.str_as_val('', dts[0])
+         doy1 = int(v1 - t0.str_as_val('', f'{yr1}-01-01') + 1)
+
+         yr2 = dts[-1][:4]
+         v2 = t0.str_as_val('', dts[-1])
+         doy2 = int(v2 - t0.str_as_val('', f'{yr2}-01-01') + 1)
+         ndays = int(v2 - v1)
+
+         print(f'{m:<13}: {yr1}.{doy1:03d} - {yr2}.{doy2:03d}  '
+               f'{dts[0]} - {dts[-1]}; {ndays} of which {ndays - ndates} are missing.')
+
+# }}}
+
+if __name__ == '__main__':
+   import sys
+   if len(sys.argv) > 1:
+      cmd = sys.argv[1]
+
+      if cmd == 'summarizeraw':
+          write_summary(raw = True)

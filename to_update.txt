@@ -4,28 +4,42 @@ https://www.cosmic.ucar.edu/what-we-do/data-processing-center/data
 https://www.cosmic.ucar.edu/what-we-do/cosmic-1/data
 https://www.cosmic.ucar.edu/what-we-do/cosmic-2/data
 
-
-
-Existing missions, downloaded to 2019 doy 58
+Existing missions:
 "metopa2016"   2007.274 - 2015.365
 "metopb2016"   2013.032 - 2015.365
 "sacc"         2006.068 - 2011.215
-"tsx"          2008.041 - ????.???
+"tsx"          2008.041 - 2019.058
 "grace"        2007.059 - 2017.334
 "cnofs"        2010.060 - 2011.365
-"kompsat5"     2015.022 - ????.???
+"kompsat5"     2015.022 - 2019.058
 "champ2016"    2001.139 - 2008.279
-"metopb"       2016.001 - 2019.058
+"metopa"       2016.001 - 2019.058
 "metopb"       2016.001 - 2019.058
 "cosmic2013"   superceded by cosmic2021
 "cosmic"       2006.120 - ?
 
+Downloaded data
+"metopa2016"   2007.274 - 2015.365
+"metopb2016"   2013.032 - 2015.365
+"sacc"         2006.068 - 2011.215
+"tsx"          2008.041 - 2019.058
+"grace"        2007.059 - 2017.334
+"cnofs"        2010.060 - 2011.365
+"kompsat5"     2015.022 - 2019.058
+"champ2016"    2001.139 - 2008.279
+"metopa"       2016.001 - 2019.059
+"metopb"       2016.001 - 2019.365
+"cosmic2013"   superceded by cosmic2021
+"cosmic"       2006.120 - ?
+
 Extension of existing missions
-"tsx"          ????.??? - 2025.151
-"kompsat5"     ????     - 2025.151
-"metopa"       2019.59 - 2021.331
-"metopb"       2019.59 - 2025.151
+"tsx"          2020.001 - 2025.151
+"kompsat5"     2020.001 - 2025.151
+"metopa"       2020.001 - 2021.331
+"metopb"       2020.001 - 2025.151
 "cosmic"       some data through 2020.116
+
+working on 2019 all but cosmic
 
 New missions
 "geoopt"       2020.351 - 2022.294
