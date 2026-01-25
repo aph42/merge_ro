@@ -5,12 +5,16 @@ to allow for radiative calculations and to carry out various analyses.
 
 ## Existing Workflow
 
- 0. proc_mission.sh: Batch downloading and processing of GPS output from CDAAC
-    - Downloads tarballs by mission, year, and day, extracts them.
-      This calls process_mission.py for each day, which in turn calls process.py process_date
-      * process.py: Processes netcdf files to allow for merged input. See open_profile() for
-        full details of processing, but part of this involves ensuring profiles are all associated
-        with unique timestamps. Outputs to raw/{mission}/
+ 0. do_proc.sh: Starts processes for dl_mission.sh and proc_mission.sh
+    - dl_mission.sh: Batch downloading from CDAAC
+      * Downloads tarballs by mission, year, and day
+    - proc_mission.sh: Batch processing of GPS output from CDAAC
+      * Expands tarballs day-by-day and calls process_mission.py for each day, 
+        which in turn calls process.py process_date
+      * process.py: Processes netcdf files to allow for merged input. See
+        open_profile() for full details of processing, but part of this
+        involves ensuring profiles are all associated with unique timestamps.
+        Outputs to raw/{mission}/
 
  1. do_merge.sh: Starts processes running merge_all.sh for different years.
     - merge_all.sh: Loops through days of the year calling merge_rad.py merge

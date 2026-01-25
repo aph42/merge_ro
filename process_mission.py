@@ -10,7 +10,7 @@ Nzs = dict(champ2016  = 3500,
            cosmic2013 = 3500,
            cosmic2021 = 3500,
            cosmic2    = 4000,
-           geoopt     = 3500,
+           geoopt     = 4000,
            grace      = 7800,
            kompsat5   = 6000,
            paz        = 6000,
@@ -22,7 +22,7 @@ Nzs = dict(champ2016  = 3500,
            metopb2016 = 3500,
            sacc       = 7000,
            saccrt     = 7000,
-           spire      = 3500,
+           spire      = 4000,
            tdx        = 3500,
            tsx        = 7800)
 
@@ -34,4 +34,4 @@ assert m in list(Nzs.keys())
 
 print('Processing %s %d-%03d' % (m, year, d))
 
-pr.process_date(m, year, d, Nz=Nzs[m], overwrite=False)
+pr.process_date(m, year, d, Nz=Nzs[m], overwrite=True)

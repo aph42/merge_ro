@@ -31,14 +31,14 @@
 # https://data.cosmic.ucar.edu/gnss-ro/metopa/postProc/level2/2021/331/atmPrf_postProc_2021_331.tar.gz
 
 declare -a missions=(
-#           "cosmic2"
+           "cosmic2"
 #           "tdx"
 #           "geoopt"
 #           "metopc"
 #           "paz"
 #           "planetiq"
 #           "spire"
-            "cosmic2021"
+#            "cosmic2021"
             )
 
 root='/local/storage/RO'
@@ -67,13 +67,13 @@ do
         then
            # Check if modification is 
            modtime=$(stat -c %Y $nc)
-           refdate=$(date --date='2026-01-09' +"%s")
+           refdate=$(date --date='2026-01-18' +"%s")
            if [ "$modtime" -gt "$refdate" ]
            then
-              echo "$nc exists and is more recent than Jan 9th. Skipping."
+              echo "$nc exists and is more recent than Jan 18th. Skipping."
               continue
            else
-              echo "$nc exists but is older than Jan 9th. Re-processing."
+              echo "$nc exists but is older than Jan 18th. Re-processing."
            fi
         fi
 

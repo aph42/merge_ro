@@ -1,6 +1,6 @@
 import pygeode as pyg
 import numpy as np
-import os, glob
+import os, glob, datetime
 
 #path = '/UTLS/phitch/RO/'
 #if not os.path.exists(path):
@@ -40,6 +40,25 @@ missions = ['cnofs', 'cosmic2021', 'metopa2016', 'metopb2016', 'metopa', 'metopb
             'champ2016', 'grace', 'sacc', 'tsx', 'paz', 'kompsat5', 'tdx', 'spire', 'cosmic2', \
             'geoopt', 'planetiq']
 missions.sort()
+
+m_colors = dict(champ2016 = '#808080',
+                    cnofs = '#808000',
+                  cosmic2 = '#4169E1',
+               cosmic2021 = '#00008B',
+                   geoopt = '#CD5C5C',
+                    grace = '#FAFAD2',
+                 kompsat5 = '#D2691E',
+                   metopa = '#32CD32',
+               metopa2016 = '#006400',
+                   metopb = '#FF00FF',
+               metopb2016 = '#8B008B',
+                   metopc = '#2F4F4F',
+                      paz = '#C0C0C0',
+                 planetiq = '#FFD700',
+                     sacc = '#D2B48C',
+                    spire = '#7FFF00',
+                      tdx = '#0000FF',
+                      tsx = '#FF8C00')
 
 def grid_profiles_pres(ds, pres):
 # {{{
@@ -115,6 +134,18 @@ def find_lr_tp(ds):
    dz = 0.
 # }}}
 
+def profile_opener(fn):
+# {{{
+  p = pyg.open(fn)
+  t = p.time
+  # Offset times to avoid collisions between days
+  t0 = t.str_as_val('', '2021-01-01') + t.day[0] / (2.*86400.)
+  t = pyg.StandardTime(startdate=dict(year=2021, month=1, day=1), units='days', values = t[:] - t0)
+  t.rtol = 1e-16
+  t.atol = 1e-16
+  return p.replace_axes(time=t)
+# }}}
+
 def open_nc(mission, year, month, days=None):
 # {{{
    import glob
@@ -132,13 +163,7 @@ def open_nc(mission, year, month, days=None):
       for d in days:
          fns.extend(glob.glob(path + 'raw/%s/%s_atmPrf_%d-%02d-%02d.nc' % (m, m, year, month, d)))
 
-   def opener(fn):
-      p = pyg.open(fn)
-      t = p.time.withnewvalues(np.round(p.time[:]))
-      t.rtol = 1e-9
-      return p.replace_axes(time=t)
-
-   d = pyg.openall(fns, opener=opener)
+   d = pyg.openall(fns, opener=profile_opener)
    tm = pyg.StandardTime(startdate=d.time.startdate, units='days', values=d.time[:], lat=d.OLat[:], lon=d.OLon[:])
    dt = d.replace_axes(time=tm)
 
@@ -198,8 +223,12 @@ def open_merged(year, month, days=None, dset='mls', miss=None, pres=False):
 
    if len(fns) == 0: return None
 
-   d = pyg.openall(fns, sorted=False).sorted('time')
-   tm = pyg.StandardTime(startdate=d.time.startdate, units='days', values=d.time[:], lat=d.OLat[:], lon=d.OLon[:])
+   ref = dict(year = 2021, month = 1, day = 1)
+
+   d = pyg.openall(fns, opener = profile_opener, sorted=False).sorted('time')
+   tm = pyg.StandardTime(startdate = ref, units='days', \
+                         values = d.time[:] - d.time.str_as_val('', '2021-01-01'), \
+                         lat=d.OLat[:], lon=d.OLon[:])
    dt = d.replace_axes(time=tm)
    
    #dt = dt.rename_axes(eta='layer', etah='level')
@@ -247,10 +276,16 @@ def open_rad(year, month, days=None, rset='pyr', dset='mls', pres=None, theta=No
    dm = pyg.openall(fns, sorted=False).sorted('time')
    dr = pyg.openall(rfns, sorted=False).sorted('time')
 
-   tm = pyg.StandardTime(startdate=dm.time.startdate, units='days', values=dm.time[:], lat=dm.OLat[:], lon=dm.OLon[:])
+   ref = dict(year = 2021, month = 1, day = 1)
+
+   tm = pyg.StandardTime(startdate = ref, units='days', \
+                         values = dm.time[:] - dm.time.str_as_val('', '2021-01-01'), \
+                         lat = dm.OLat[:], lon = dm.OLon[:])
 
    if len(tm) != len(dr.time): 
       print('Warning; %d %d %s has mismatch between merged and radiative dataset.' % (year, month, str(days)))
+      print(dm)
+      print(dr)
       return None
 
    dt = dm.replace_axes(time=tm) + dr.replace_axes(time=tm)
@@ -376,17 +411,17 @@ def write_summary(raw=False, merged=False, rrtm=False, reprocess=False):
    if raw:
       for m in missions:
          print('============== %s ==============' % m)
-         for yr in np.arange(2006, 2019):
+         for yr in np.arange(2006, 2026):
             for mn in range(1, 13):
                summary_file = path + 'raw/%s/%s_summary_%d-%02d.nc' % (m, m, yr, mn)
                if not reprocess and os.path.exists(summary_file):
-                   print('Summary file exists. Skipping.')
+                   print(f'{m} {yr}-{mn}: Summary file exists. Skipping.')
                    continue
 
                days = int(t0.days_in_month(yr, mn))
                tax = pyg.standardtimen('%04d-%02d-01' % (yr, mn), days)
-               ntot = np.zeros(days, 'i')
-               ntrop = np.zeros(days, 'i')
+               ntot = np.zeros(days)
+               ntrop = np.zeros(days)
                for dy in range(days):
                   try:
                      ds = open_nc(m, yr, mn, dy + 1)
@@ -398,6 +433,7 @@ def write_summary(raw=False, merged=False, rrtm=False, reprocess=False):
                pr = pyg.Var((tax,), values = ntot, name = f'profiles')
                prt = pyg.Var((tax,), values = ntrop, name = f'tropical_profiles')
                pyg.save(summary_file, [pr, prt])
+               print(f'{summary_file} written.', flush=True)
    if merged:
       for m in missions:
          print('============== %s ==============' % m)
@@ -451,6 +487,34 @@ def summary(raw=False, merged=False, rrtm=False, reprocess=False):
          print(f'{m:<13}: {yr1}.{doy1:03d} - {yr2}.{doy2:03d}  '
                f'{dts[0]} - {dts[-1]}; {ndays} of which {ndays - ndates} are missing.')
 
+   if merged:
+      for m in missions:
+         patt = path + f'merged/mls-e5/*/{m}_merged_*.nc'
+         fns = glob.glob(patt)
+
+         reftime = datetime.datetime(2026, 1, 22).timestamp()
+         fns = [f for f in fns if os.path.getmtime(f) > reftime]
+
+         if fns == None or len(fns) == 0: 
+             print(f'{m:<13}: No files.')
+             continue
+
+         dts = [f[-13:-3] for f in fns]
+         dts.sort()
+
+         ndates = len(dts)
+         yr1 = dts[0][:4]
+         v1 = t0.str_as_val('', dts[0])
+         doy1 = int(v1 - t0.str_as_val('', f'{yr1}-01-01') + 1)
+
+         yr2 = dts[-1][:4]
+         v2 = t0.str_as_val('', dts[-1])
+         doy2 = int(v2 - t0.str_as_val('', f'{yr2}-01-01') + 1)
+         ndays = int(v2 - v1 + 1)
+
+         print(f'{m:<13}: {yr1}.{doy1:03d} - {yr2}.{doy2:03d}  '
+               f'{dts[0]} - {dts[-1]}; {ndays} of which {ndays - ndates} are missing.')
+
 # }}}
 
 if __name__ == '__main__':
@@ -459,4 +523,6 @@ if __name__ == '__main__':
       cmd = sys.argv[1]
 
       if cmd == 'summarizeraw':
-          write_summary(raw = True)
+          write_summary(raw = True)#, reprocess = True)
+
+#['/local/storage/RO/merged/mls-e5/2021-01/cosmic2_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/geoopt_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/kompsat5_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/metopa_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/metopb_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/metopc_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/paz_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/spire_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/tdx_merged_2021-01-01.nc' , '/local/storage/RO/merged/mls-e5/2021-01/tsx_merged_2021-01-01.nc']
